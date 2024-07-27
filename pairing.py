@@ -23,33 +23,42 @@ dont_pair = []
 pairings = []
 
 
+def exclude_commented_rows(rows):
+    """Exclude rows that begin with a #."""
+    return [row for row in rows if not row[0].startswith('#')]
+
+
 def load_people():
     """
     Load people from the 'people.csv' file and populate the global 'people' dictionary.
-    Only includes people with today's date.
+    Only includes people with today's date and excludes commented rows.
     """
     global people
     with open(Path(__file__).parent / 'people.csv') as f:
-        for line in f:
-            if line.startswith('name'):
-                continue
-            name, level, date = line.strip().split(',')
-            if date == today:
-                people[name] = int(level)
+        reader = csv.reader(f)
+        rows = list(reader)
+        rows = exclude_commented_rows(rows)
+        for row in rows[1:]:  # Skip the header row
+            if len(row) >= 3:
+                name, level, date = row
+                if date == today:
+                    people[name] = int(level)
 
 
 def load_exclusions():
     """
     Load exclusions from the 'exclude.csv' file and populate the global 'dont_pair' list.
     Each row in the file represents a pair of people who should not be paired together.
+    Excludes commented rows.
     """
     global dont_pair
     exclusion_file = Path(__file__).parent / 'exclude.csv'
     if exclusion_file.exists():
         with open(exclusion_file, 'r') as f:
             reader = csv.reader(f)
-            next(reader, None)
-            for row in reader:
+            rows = list(reader)
+            rows = exclude_commented_rows(rows)
+            for row in rows[1:]:  # Skip the header row
                 if len(row) >= 2:
                     dont_pair.append({row[0], row[1]})
 
@@ -85,11 +94,17 @@ def main():
 
     # Handle the case of odd number of people
     if len(sorted_people) % 2 != 0:
-        high_skill_group = sorted_people[-3:]  # Take the three highest skilled people
-        names = sorted([person[0] for person in high_skill_group])
-        pairings.append(f"{names[0]}, {names[1]}, and {names[2]}")
-        paired.update(names)
-        sorted_people = sorted_people[:-3]
+        if len(sorted_people) >= 3:
+            high_skill_group = sorted_people[-3:]  # Take the three highest skilled people
+            names = sorted([person[0] for person in high_skill_group])
+            pairings.append(f"{names[0]}, {names[1]}, and {names[2]}")
+            paired.update(names)
+            sorted_people = sorted_people[:-3]
+        else:
+            # If there are fewer than 3 people, just add the odd person out
+            odd_person = sorted_people.pop()
+            pairings.append(odd_person[0])
+            paired.add(odd_person[0])
 
     # Pair people based on skill level with some randomness
     while len(sorted_people) > 1:
